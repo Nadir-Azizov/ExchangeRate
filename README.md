@@ -37,7 +37,7 @@ Install prerequisites:
 SQL Server
 
 Clone the repository:
-git clone https://github.com/Nadir-Azizov/BambooCard
+git clone https://github.com/Nadir-Azizov/ExchangeRate
 
 Navigate to project directory:
 cd BambooCard

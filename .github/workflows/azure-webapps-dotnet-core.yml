@@ -1,4 +1,4 @@
-name: CI/CD .NET 8 API → Azure App Service
+name: build&deploy
 
 on:
   push:
