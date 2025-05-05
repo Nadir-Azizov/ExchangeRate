@@ -1,0 +1,114 @@
+name: CI/CD .NET 8 API → Azure App Service
+
+on:
+  push:
+    branches:
+      - dev
+      - test
+      - prod
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  PROJECT_PATH: 'BambooCard.WebAPI/BambooCard.WebAPI.csproj'
+  BUILD_CONFIGURATION: 'Release'
+  BUILD_OUTPUT: 'publish'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore & Build
+        run: |
+          dotnet restore ${{ env.PROJECT_PATH }}
+          dotnet build   ${{ env.PROJECT_PATH }} --configuration ${{ env.BUILD_CONFIGURATION }}
+
+      - name: Run Tests
+        run: |
+          dotnet test ${{ env.PROJECT_PATH }} \
+            --configuration ${{ env.BUILD_CONFIGURATION }} \
+            --no-build \
+            --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-results
+          path: '**/test-results.trx'
+
+      - name: Publish
+        if: success()
+        run: |
+          dotnet publish ${{ env.PROJECT_PATH }} \
+            --configuration ${{ env.BUILD_CONFIGURATION }} \
+            --output ${{ env.BUILD_OUTPUT }}
+
+      - name: Upload artifact
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: api-publish
+          path: ${{ env.BUILD_OUTPUT }}
+
+  deploy-dev:
+    needs: build
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    environment: Dev
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: api-publish
+
+      - name: Deploy to Azure App Service (Dev)
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_APP_SERVICE_NAME_DEV }}
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_DEV }}
+          package: ${{ env.BUILD_OUTPUT }}
+
+  deploy-test:
+    needs: build
+    if: github.ref == 'refs/heads/test'
+    runs-on: ubuntu-latest
+    environment: Test
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: api-publish
+
+      - name: Deploy to Azure App Service (Test)
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_APP_SERVICE_NAME_TEST }}
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_TEST }}
+          package: ${{ env.BUILD_OUTPUT }}
+
+  deploy-prod:
+    needs: build
+    if: github.ref == 'refs/heads/prod'
+    runs-on: ubuntu-latest
+    environment: Production
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: api-publish
+
+      - name: Deploy to Azure App Service (Prod)
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ secrets.AZURE_APP_SERVICE_NAME_PROD }}
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_PROD }}
+          package: ${{ env.BUILD_OUTPUT }}
