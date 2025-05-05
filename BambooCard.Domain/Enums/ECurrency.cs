@@ -1,0 +1,36 @@
+﻿namespace BambooCard.Domain.Enums;
+
+public enum ECurrency
+{
+    EUR = 1,
+    USD = 2,
+    GBP = 3,
+    AUD = 4,
+    BGN = 5,
+    BRL = 6,
+    CAD = 7,
+    CHF = 8,
+    CNY = 9,
+    CZK = 10,
+    DKK = 11,
+    HKD = 12,
+    HUF = 13,
+    IDR = 14,
+    ILS = 15,
+    INR = 16,
+    ISK = 17,
+    JPY = 18,
+    KRW = 19,
+    MXN = 20,
+    MYR = 21,
+    NOK = 22,
+    NZD = 23,
+    PHP = 24,
+    PLN = 25,
+    RON = 26,
+    SEK = 27,
+    SGD = 28,
+    THB = 29,
+    TRY = 30,
+    ZAR = 31
+}
