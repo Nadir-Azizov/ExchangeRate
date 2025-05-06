@@ -17,7 +17,7 @@ public class RetryHelperTests
         int attempts = 0;
         var policy = RetryHelper.CreateResiliencePolicy(
             retryCount: 3,
-            baseDelaySeconds: 0, // No actual delay in test
+            baseDelaySeconds: 0,
             allowedFailuresBeforeBreak: 5,
             breakDuration: TimeSpan.FromSeconds(10),
             logger: _logger);
@@ -47,7 +47,6 @@ public class RetryHelperTests
     [Fact]
     public async Task ShouldOpenCircuitBreaker_AfterConsecutiveFailures()
     {
-        // Arrange
         var policy = RetryHelper.CreateResiliencePolicy(
             retryCount: 1,
             baseDelaySeconds: 0,
@@ -56,13 +55,11 @@ public class RetryHelperTests
             logger: _logger);
 
         Func<Task<HttpResponseMessage>> failingAction = () =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError)); // 500 = transient error
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
 
-        // Act - First two attempts to trip breaker
         await policy.ExecuteAsync(failingAction);
         await policy.ExecuteAsync(failingAction);
 
-        // Act + Assert - Third attempt should trigger circuit breaker
         await Assert.ThrowsAsync<BrokenCircuitException<HttpResponseMessage>>(() =>
             policy.ExecuteAsync(failingAction));
 
@@ -92,16 +89,13 @@ public class RetryHelperTests
         Func<Task<HttpResponseMessage>> success = () =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
 
-        // Act - Trip breaker
+        // Act
         await policy.ExecuteAsync(fail);
 
-        // Act - Should throw during open state
         await Assert.ThrowsAsync<BrokenCircuitException<HttpResponseMessage>>(() => policy.ExecuteAsync(fail));
 
-        // Wait for breaker to reset
         await Task.Delay(breakDuration + TimeSpan.FromMilliseconds(100));
 
-        // Act - Should pass after reset
         var result = await policy.ExecuteAsync(success);
 
         // Assert
@@ -140,7 +134,6 @@ public class RetryHelperTests
 
         int failCounter = 0;
 
-        // Fail twice to trigger retries and open the circuit
         Func<Task<HttpResponseMessage>> fail = () =>
         {
             failCounter++;
@@ -150,19 +143,15 @@ public class RetryHelperTests
         await policy.ExecuteAsync(fail);
         await policy.ExecuteAsync(fail);
 
-        // Circuit should now be open
         await Assert.ThrowsAsync<BrokenCircuitException<HttpResponseMessage>>(() => policy.ExecuteAsync(fail));
 
-        // Wait for reset period
         await Task.Delay(breakDuration + TimeSpan.FromMilliseconds(100));
 
-        // Half-open test probe (success)
         var result = await policy.ExecuteAsync(() =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
 
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
 
-        // ✅ Assert log: retry warnings (2 failures × 1 retry each)
         logger.Received().Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
@@ -170,7 +159,6 @@ public class RetryHelperTests
             Arg.Any<Exception>(),
             Arg.Any<Func<object, Exception, string>>());
 
-        // ✅ Assert log: circuit breaker opened
         logger.Received().Log(
             LogLevel.Error,
             Arg.Any<EventId>(),
@@ -178,7 +166,6 @@ public class RetryHelperTests
             Arg.Any<Exception>(),
             Arg.Any<Func<object, Exception, string>>());
 
-        // ✅ Assert log: half-open and reset
         logger.Received().Log(
             LogLevel.Information,
             Arg.Any<EventId>(),
@@ -215,7 +202,6 @@ public class RetryHelperTests
         // Assert
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
 
-        // ✅ Ensure no retry log is written
         logger.DidNotReceive().Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),
@@ -223,7 +209,6 @@ public class RetryHelperTests
             Arg.Any<Exception>(),
             Arg.Any<Func<object, Exception, string>>());
 
-        // ✅ Ensure no circuit breaker logs
         logger.DidNotReceive().Log(
             LogLevel.Error,
             Arg.Any<EventId>(),

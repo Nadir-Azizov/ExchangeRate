@@ -27,23 +27,18 @@ public class ExchangeManagerConvertTests
 
     public ExchangeManagerConvertTests()
     {
-        // 1) In-memory EF / real repo
         var opts = new DbContextOptionsBuilder<BambooCardDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         _db = new BambooCardDbContext(opts);
         var repo = new ExchangeRateRepository(_db);
 
-        // 2) Dummy cache always misses
         _cache = new DummyCacheManager();
         _prov = Substitute.For<ICurrencyProviderFactory>();
         _cacheSettings = Options.Create(new CacheSettings { Duration = 5 });
 
         _sut = new ExchangeManager(_prov, _cache, repo, _cacheSettings);
 
-
-
-        // WebService.ExchangeRateDto → Domain.ExchangeRate
         TypeAdapterConfig<WebServiceExchangeDto, ExchangeRate>
             .NewConfig()
             .Map(d => d.BaseCurrency, src => Enum.Parse<ECurrency>(src.Base, true))
@@ -59,7 +54,6 @@ public class ExchangeManagerConvertTests
                     .ToList();
             });
 
-        // WebService.ExchangeRateDto → Business.ExchangeRateDto
         TypeAdapterConfig<WebServiceExchangeDto, ExchangeRateDto>
             .NewConfig()
             .Map(d => d.BaseCurrency, src => Enum.Parse<ECurrency>(src.Base, true))
@@ -69,13 +63,11 @@ public class ExchangeManagerConvertTests
                     kv => kv.Value
                  ));
 
-        // Domain.ExchangeRate → Business.ExchangeRateDto
         TypeAdapterConfig<ExchangeRate, ExchangeRateDto>
             .NewConfig()
             .Map(d => d.Rates,
                  src => src.Rates.ToDictionary(r => r.Currency, r => r.Value));
 
-        // Business.ExchangeRateDto → Domain.ExchangeRate
         TypeAdapterConfig<ExchangeRateDto, ExchangeRate>
             .NewConfig()
             .Map(d => d.Provider, src => EProvider.Frankfurter)
@@ -94,7 +86,6 @@ public class ExchangeManagerConvertTests
     [Fact]
     public async Task ConvertToAllAsync_FromBaseCurrency_ShouldConvertOthers()
     {
-        // seed one entity: Base=USD, Rates EUR=2, GBP=3
         var entity = new ExchangeRate
         {
             BaseCurrency = ECurrency.USD,
@@ -106,19 +97,18 @@ public class ExchangeManagerConvertTests
         _db.ExchangeRates.Add(entity);
         await _db.SaveChangesAsync();
 
-        // Act: convert 5 USD => base=1, amountInBase=5
+        // Act
         var result = await _sut.ConvertToAllAsync(ECurrency.USD, 5m);
 
         // Assert
-        Assert.Equal(10m, result[ECurrency.EUR]);  // 5 * 2
-        Assert.Equal(15m, result[ECurrency.GBP]);  // 5 * 3
-        Assert.Equal(5m, result[ECurrency.USD]);  // base itself
+        Assert.Equal(10m, result[ECurrency.EUR]);
+        Assert.Equal(15m, result[ECurrency.GBP]);
+        Assert.Equal(5m, result[ECurrency.USD]);
     }
 
     [Fact]
     public async Task ConvertToAllAsync_ToBaseCurrency_ShouldConvertOthers()
     {
-        // seed one entity: Base=USD, Rates EUR=2, GBP=3
         var entity = new ExchangeRate
         {
             BaseCurrency = ECurrency.USD,
@@ -130,15 +120,14 @@ public class ExchangeManagerConvertTests
         _db.ExchangeRates.Add(entity);
         await _db.SaveChangesAsync();
 
-        // Act: convert 4 EUR => amountInBase = 4 / 2 = 2
+        // Act
         var result = await _sut.ConvertToAllAsync(ECurrency.EUR, 4m);
 
         // Assert
-        Assert.Equal(6m, result[ECurrency.GBP]); // 2 * 3
-        Assert.Equal(2m, result[ECurrency.USD]); // base
+        Assert.Equal(6m, result[ECurrency.GBP]);
+        Assert.Equal(2m, result[ECurrency.USD]);
     }
 
-    // Dummy cache so IsAdd always false
     private class DummyCacheManager : ICacheManager
     {
         public bool IsAdd(string key) => false;

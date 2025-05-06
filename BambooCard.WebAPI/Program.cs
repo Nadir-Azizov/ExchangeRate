@@ -9,6 +9,8 @@ using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddHealthChecks(builder.Configuration);
+
 builder.Services.AddVersioningWithExplorer();
 
 builder.Services.AddControllers()
@@ -48,6 +50,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUIWithVersioning();
 }
 
+
+app.MapHealthCheckLive();
+app.MapHealthCheckReady();
 
 app.UseCorrelationId();
 

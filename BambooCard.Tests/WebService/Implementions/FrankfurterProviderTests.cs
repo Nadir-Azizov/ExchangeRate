@@ -95,14 +95,12 @@ public class FrankfurterProviderTests
         var logger = Substitute.For<ILogger<FrankfurterProvider>>();
         int callCount = 0;
 
-        // Simulate failure: every call throws an exception
         var failingHandler = new FakeHttpMessageHandler(_ =>
         {
             callCount++;
             throw new HttpRequestException("Boom");
         });
 
-        // Define circuit breaker policy
         var breakerPolicy = Policy<HttpResponseMessage>
             .Handle<HttpRequestException>()
             .CircuitBreakerAsync(
@@ -117,21 +115,16 @@ public class FrankfurterProviderTests
 
         var provider = CreateProvider(failingHandler, logger, breakerPolicy);
 
-        // Act - trigger circuit breaker with 2 failures
         await Assert.ThrowsAsync<InternalServerException>(() => provider.FetchLatestAsync());
         await Assert.ThrowsAsync<InternalServerException>(() => provider.FetchLatestAsync());
 
-        // Circuit should now be OPEN — Polly should reject this call
         var circuitEx = await Assert.ThrowsAsync<InternalServerException>(() => provider.FetchLatestAsync());
 
-        // ✅ Assert message indicates circuit rejection
         Assert.Contains("Failed to GET Frankfurter rates", circuitEx.Message);
         Assert.Contains("open", circuitEx.Message, StringComparison.OrdinalIgnoreCase);
 
-        // Wait for circuit to transition to half-open
         await Task.Delay(350);
 
-        // Act - now simulate a successful response
         var successHandler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(ValidJson)
@@ -140,10 +133,8 @@ public class FrankfurterProviderTests
         var successProvider = CreateProvider(successHandler, logger, breakerPolicy);
         var result = await successProvider.FetchLatestAsync();
 
-        // ✅ Validate response
         Assert.Equal("USD", result.Base);
 
-        // ✅ Verify circuit breaker logs
         logger.Received().Log(
             LogLevel.Warning,
             Arg.Any<EventId>(),

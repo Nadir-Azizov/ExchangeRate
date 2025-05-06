@@ -46,7 +46,6 @@ public class ExchangeManagerTests
 
         _sut = new ExchangeManager(factory, _cache, _repo, _cacheSettings);
 
-        // WebService.ExchangeRateDto → Domain.ExchangeRate
         TypeAdapterConfig<WebServiceExchangeDto, ExchangeRate>
             .NewConfig()
             .Map(d => d.BaseCurrency, src => Enum.Parse<ECurrency>(src.Base, true))
@@ -62,7 +61,6 @@ public class ExchangeManagerTests
                     .ToList();
             });
 
-        // WebService.ExchangeRateDto → Business.ExchangeRateDto
         TypeAdapterConfig<WebServiceExchangeDto, ExchangeRateDto>
             .NewConfig()
             .Map(d => d.BaseCurrency, src => Enum.Parse<ECurrency>(src.Base, true))
@@ -72,13 +70,11 @@ public class ExchangeManagerTests
                     kv => kv.Value
                  ));
 
-        // Domain.ExchangeRate → Business.ExchangeRateDto
         TypeAdapterConfig<ExchangeRate, ExchangeRateDto>
             .NewConfig()
             .Map(d => d.Rates,
                  src => src.Rates.ToDictionary(r => r.Currency, r => r.Value));
 
-        // Business.ExchangeRateDto → Domain.ExchangeRate
         TypeAdapterConfig<ExchangeRateDto, ExchangeRate>
             .NewConfig()
             .Map(d => d.Provider, src => EProvider.Frankfurter)
@@ -200,8 +196,7 @@ public class ExchangeManagerTests
     [Fact]
     public async Task GetServiceRateAsync_ShouldReturnAdaptedDto()
     {
-        // ─── Arrange a fresh ExchangeManager with its own stubbed factory ───
-        // 1) Mapster mapping (if not already in your test-class ctor)
+        // Arrange 
         TypeAdapterConfig<BambooCard.WebService.Models.ExchangeRateDto, BambooCard.Business.Models.Main.ExchangeRateDto>
             .NewConfig()
             .Map(d => d.BaseCurrency, src => Enum.Parse<ECurrency>(src.Base, true))
@@ -210,7 +205,6 @@ public class ExchangeManagerTests
                            kv => Enum.Parse<ECurrency>(kv.Key, true),
                            kv => kv.Value));
 
-        // 2) Create the “raw” WebService DTO
         var wsDto = new BambooCard.WebService.Models.ExchangeRateDto
         {
             Amount = 1,
@@ -219,19 +213,16 @@ public class ExchangeManagerTests
             Rates = new Dictionary<string, decimal> { ["USD"] = 0.9m }
         };
 
-        // 3) Stub the ICurrencyProvider to return our DTO
         var provider = Substitute.For<ICurrencyProvider>();
         provider
             .FetchLatestAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(wsDto));
 
-        // 4) Stub a brand-new factory so it always returns our provider
         var factory = Substitute.For<ICurrencyProviderFactory>();
         factory
             .GetProvider(EProvider.Frankfurter)
             .Returns(provider);
 
-        // 5) Use a no-op cache and in-memory repo (they’re unused here)
         var cache = Substitute.For<ICacheManager>();
         var options = new DbContextOptionsBuilder<BambooCardDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -239,7 +230,6 @@ public class ExchangeManagerTests
         var realRepo = new ExchangeRateRepository(new BambooCardDbContext(options));
         var settings = Options.Create(new CacheSettings { Duration = 5 });
 
-        // 6) Create a fresh manager for this test
         var manager = new ExchangeManager(factory, cache, realRepo, settings);
 
         // ─── Act ───
@@ -274,7 +264,7 @@ public class ExchangeManagerTests
         // Act
         var result = await _sut.GetCurrentRateAsync();
 
-        // Assert the cached instance is returned
+        // Assert
         Assert.Same(cached, result);
         _cache.DidNotReceiveWithAnyArgs().Add(default, default, default);
     }
@@ -283,11 +273,9 @@ public class ExchangeManagerTests
     [Fact]
     public async Task GetCurrentRateAsync_ShouldFetchDb_WhenCacheMiss()
     {
-        // 1) Force cache miss
         var key = KeyHelper.GetCacheKey(EKeyType.ExchangeLatest);
         _cache.IsAdd(key).Returns(false);
 
-        // 2) Seed the in-memory EF Db with one ExchangeRate
         var entity = new ExchangeRate
         {
             BaseCurrency = ECurrency.GBP,
@@ -299,10 +287,10 @@ public class ExchangeManagerTests
         _db.ExchangeRates.Add(entity);
         await _db.SaveChangesAsync();
 
-        // 3) Act
+        // Act
         var result = await _sut.GetCurrentRateAsync();
 
-        // 4) Assert
+        // Assert
         Assert.Equal(ECurrency.GBP, result.BaseCurrency);
         _cache.Received().Add(key, result, _cacheSettings.Value.Duration);
     }
@@ -320,7 +308,7 @@ public class ExchangeManagerTests
     [Fact]
     public async Task RefreshCacheFromDbAsync_ShouldRemoveAndAddCache()
     {
-        // Arrange: seed one ExchangeRate entity into the in–memory EF store
+        // Arrange
         var entity = new ExchangeRate
         {
             BaseCurrency = ECurrency.USD,
@@ -329,17 +317,15 @@ public class ExchangeManagerTests
         _db.ExchangeRates.Add(entity);
         await _db.SaveChangesAsync();
 
-        // Compute the DTO you expect after mapping
         var expectedDto = entity.Adapt<ExchangeRateDto>();
         var key = KeyHelper.GetCacheKey(EKeyType.ExchangeLatest);
 
         // Act
         await _sut.RefreshCacheFromDbAsync();
 
-        // Assert: that Remove() was called
+        // Assert
         _cache.Received(1).Remove(key);
 
-        // Assert: that Add() was called with a DTO matching our mapped entity
         _cache.Received(1).Add(
             key,
             Arg.Is<ExchangeRateDto>(dto =>

@@ -225,7 +225,7 @@ public class AuthManagerTests
         // Act
         await authManager.MakeUserAdminAsync(user.Email);
 
-        // Assert: AuthManager drove the UserManager to add the role
+        // Assert
         await userManager.Received().AddToRoleAsync(user, EUserRole.Admin.ToString());
     }
 

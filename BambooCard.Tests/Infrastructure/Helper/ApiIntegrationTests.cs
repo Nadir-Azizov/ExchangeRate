@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc.Testing;
 using System.Net;
 
-
 namespace BambooCard.Tests.Infrastructure.Helper;
 
 public class ApiIntegrationTests : IClassFixture<WebApplicationFactory<BambooCard.WebAPI.Program>>
@@ -18,7 +17,7 @@ public class ApiIntegrationTests : IClassFixture<WebApplicationFactory<BambooCar
     [Fact]
     public async Task HealthEndpoint_Returns200Ok()
     {
-        var resp = await _client.GetAsync("/api/ExchangeRate/current");
+        var resp = await _client.GetAsync("/health/live");
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
     }
 
@@ -28,7 +27,7 @@ public class ApiIntegrationTests : IClassFixture<WebApplicationFactory<BambooCar
         int ok = 0, tooMany = 0;
         for (int i = 0; i < 20; i++)
         {
-            var r = await _client.GetAsync("/api/ExchangeRate/current");
+            var r = await _client.GetAsync("/health/live");
             if (r.StatusCode == HttpStatusCode.OK) ok++;
             if (r.StatusCode == HttpStatusCode.TooManyRequests) tooMany++;
         }
